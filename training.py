@@ -72,7 +72,7 @@ class OCRTrainer:
                 min_lr=1e-7  # Minimalny współczynnik uczenia
             ),
             tf.keras.callbacks.ModelCheckpoint(
-                filepath=f'{save_path}/{self.model_type}_best.h5',
+                filepath=f'{save_path}/{self.model_type}_best.keras',
                 monitor='val_loss',
                 save_best_only=True,  # Zapis tylko najlepszego modelu
                 save_weights_only=False

@@ -17,7 +17,7 @@ class MJSynthDataLoader:
         self.img_width = img_width
         
         # Definiuje słownik dozwolonych znaków (cyfry i małe litery).
-        self.vocab = "" + "0123456789abcdefghijklmnopqrstuvwxyz"
+        self.vocab = "-" + "0123456789abcdefghijklmnopqrstuvwxyz"
         
         # Tworzy mapowania od znaków do indeksów i odwrotnie.
         self.char_to_idx = {char: idx for idx, char in enumerate(self.vocab)}
@@ -25,6 +25,8 @@ class MJSynthDataLoader:
         
         # Przechowuje rozmiar słownika.
         self.vocab_size = len(self.vocab)
+
+        self.pad_token_idx = 0  # '-' jako padding
 
     def load_annotation_file(self, annotation_path):
         """
@@ -56,7 +58,7 @@ class MJSynthDataLoader:
                         image_path, label = parts
                         # Upewnia się, że ścieżka do obrazu jest względna względem katalogu zbioru danych.
                         if not image_path.startswith(self.data_dir):
-                            image_path = os.path.join(self.data_dir, image_path)
+                            image_path = os.path.join(self.data_dir, "mnt/ramdisk/max/90kDICT32px", image_path)
                         samples.append((image_path, label.lower()))
                 else:
                     # Obsługuje przypadki, gdy etykieta jest osadzona w nazwie pliku.
@@ -67,7 +69,7 @@ class MJSynthDataLoader:
                         if len(parts) >= 2:
                             label = parts[1]
                             image_path = os.path.join(self.data_dir, line)
-                            samples.append((image_path, label.lower()))
+                            samples.append((image_path, "mnt/ramdisk/max/90kDICT32px", label.lower()))
         
         print(f"Załadowano {len(samples)} próbek z {annotation_path}")
         return samples
@@ -209,7 +211,7 @@ class MJSynthDataLoader:
         dataset = dataset.padded_batch(
             batch_size,
             padded_shapes=([self.img_height, self.img_width, 1], [None]),
-            padding_values=(0.0, -1)  # Używa 0.0 do wypełniania obrazów i -1 do wypełniania etykiet.
+            padding_values=(0.0, self.pad_token_idx)  # Używa 0.0 do wypełniania obrazów i -1 do wypełniania etykiet.
         )
         
         return dataset

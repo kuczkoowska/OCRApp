@@ -58,8 +58,10 @@ class CRNNModel:
         # Przekształcenie dla wejścia RNN
         # Permutacja wymiarów na (batch, szerokość, wysokość, kanały) dla kompatybilności
         x = layers.Permute((2, 1, 3))(x)
-        # Przekształcenie na (batch, szerokość, wysokość * kanały) dla przetwarzania przez RNN
-        x = layers.Reshape((self.img_width // 4, (self.img_height // 16) * 512))(x)
+
+        # Przekształcenie dla przetwarzania przez RNN
+        x = layers.Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
+
         # Warstwa Dense zmniejszająca wymiarowość cech dla wejścia RNN
         x = layers.Dense(64, activation='relu')(x)
         
@@ -71,7 +73,7 @@ class CRNNModel:
         
         # Warstwa wyjściowa z aktywacją softmax dla prawdopodobieństw znaków
         # Rozmiar wyjścia to vocab_size (liczba znaków) + 1 dla tokenu CTC blank
-        outputs = layers.Dense(self.vocab_size, activation='softmax')(x)
+        outputs = layers.Dense(self.vocab_size + 1, activation='softmax')(x)
         
         # Tworzenie modelu
         model = Model(inputs, outputs, name='CRNN')

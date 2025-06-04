@@ -6,7 +6,6 @@ from mjs import MJSynthDataLoader
 # Klasa do oceny modeli OCR przy użyciu zbioru danych MJSynth
 class MJSynthEvaluator:
     def __init__(self, data_loader):
-        # Inicjalizacja z instancją ładowarki danych
         self.data_loader = data_loader
         
     def calculate_character_accuracy(self, y_true, y_pred):
@@ -14,8 +13,8 @@ class MJSynthEvaluator:
         Obliczanie dokładności na poziomie znaków.
         Porównuje każdy znak w prawdziwym i przewidywanym tekście.
         """
-        correct_chars = 0  # Liczba poprawnie przewidzianych znaków
-        total_chars = 0    # Całkowita liczba znaków w prawdziwym tekście
+        correct_chars = 0
+        total_chars = 0
         
         for true_text, pred_text in zip(y_true, y_pred):
             # Porównanie znaków w prawdziwym i przewidywanym tekście
@@ -117,11 +116,9 @@ def evaluate_saved_models():
     data_loader = MJSynthDataLoader('/home/jagoda/studia/inteloblicz/OCRApp/mjsynth')
     
     # Ładowanie podziału zbioru danych testowych
-    test_images, test_labels = data_loader.load_dataset_split('test')
-    # Tworzenie zbioru danych TensorFlow do oceny
+    test_samples = data_loader.load_data('test')
     test_dataset = data_loader.create_tf_dataset(
-        test_images[:1000], test_labels[:1000],  # Ograniczenie do 1000 próbek dla szybszej oceny
-        batch_size=32, shuffle=False
+        test_samples[:1000], batch_size=32
     )
     
     # Tworzenie instancji klasy oceniającej
@@ -129,8 +126,7 @@ def evaluate_saved_models():
     
     # Ocena zarówno modeli CRNN, jak i ViT
     for model_type in ['crnn', 'vit']:
-        model_path = f'models/{model_type}_best.h5'  # Ścieżka do zapisanego modelu
-        
+        model_path = f'models/{model_type}_best.keras'
         try:
             print(f"\nOcena modelu {model_type.upper()}...")
             # Ładowanie zapisanego modelu
