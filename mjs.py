@@ -47,35 +47,7 @@ class MJSynthDataLoader:
             texts.append(text)
         return texts
 
-    # crnn
-    # def create_tf_dataset(self, samples, batch_size=32):
-    #     def generator():
-    #         for image_path, label in samples:
-    #             image = self.preprocess_image(image_path)
-    #             if image is not None:
-    #                 encoded_label = self.encode_label(label)
-    #                 yield image, encoded_label
-
-    #     output_signature = (
-    #         tf.TensorSpec(shape=(self.img_height, self.img_width, 1), dtype=tf.float32),
-    #         tf.TensorSpec(shape=(None,), dtype=tf.int32)
-    #     )
-
-    #     dataset = tf.data.Dataset.from_generator(
-    #         generator,
-    #         output_signature=output_signature
-    #     )
-    #     dataset = dataset.padded_batch(
-    #         batch_size,
-    #         padded_shapes=([self.img_height, self.img_width, 1], [None]),
-    #         padding_values=(0.0, self.pad_token_idx)  # padding -1 dla etykiet
-    #     )
-
-
-    #     return dataset
-    
-    # vit
-    def create_tf_dataset(self, samples, batch_size=32, sequence_length=None, for_vit=False):
+    def create_crnn_tf_dataset(self, samples, batch_size=32):
         def generator():
             for image_path, label in samples:
                 image = self.preprocess_image(image_path)
@@ -92,21 +64,35 @@ class MJSynthDataLoader:
             generator,
             output_signature=output_signature
         )
+        dataset = dataset.padded_batch(
+            batch_size,
+            padded_shapes=([self.img_height, self.img_width, 1], [None]),
+            padding_values=(0.0, self.pad_token_idx)  # padding -1 dla CRNN
+        )
+        return dataset
 
-        pad_value = 0 if for_vit else self.pad_token_idx
+    def create_vit_tf_dataset(self, samples, batch_size=32, sequence_length=12):
+        def generator():
+            for image_path, label in samples:
+                image = self.preprocess_image(image_path)
+                if image is not None:
+                    encoded_label = self.encode_label(label)
+                    yield image, encoded_label
 
-        if sequence_length is not None:
-            dataset = dataset.padded_batch(
-                batch_size,
-                padded_shapes=([self.img_height, self.img_width, 1], [sequence_length]),
-                padding_values=(0.0, pad_value)
-            )
-        else:
-            dataset = dataset.padded_batch(
-                batch_size,
-                padded_shapes=([self.img_height, self.img_width, 1], [None]),
-                padding_values=(0.0, pad_value)
-            )
+        output_signature = (
+            tf.TensorSpec(shape=(self.img_height, self.img_width, 1), dtype=tf.float32),
+            tf.TensorSpec(shape=(None,), dtype=tf.int32)
+        )
+
+        dataset = tf.data.Dataset.from_generator(
+            generator,
+            output_signature=output_signature
+        )
+        dataset = dataset.padded_batch(
+            batch_size,
+            padded_shapes=([self.img_height, self.img_width, 1], [sequence_length]),
+            padding_values=(0.0, 0)  # padding 0 dla ViT
+        )
         return dataset
     
             

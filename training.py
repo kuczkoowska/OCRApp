@@ -170,52 +170,39 @@ def main():
         val_samples = val_samples[:config['data_amount_limit'] // 5]
         test_samples = test_samples[:config['data_amount_limit'] // 10]
 
-    # Tworzenie zbiorów danych TensorFlow z załadowanych próbek
-    # crnn
-    # print("Tworzenie zbiorów danych TensorFlow...")
-    # train_dataset = data_loader.create_tf_dataset(
-    #     train_samples, batch_size=config['batch_size']
-    # )
-
-    # val_dataset = data_loader.create_tf_dataset(
-    #     val_samples, batch_size=config['batch_size']
-    # )
-
-    # test_dataset = data_loader.create_tf_dataset(
-    #     test_samples, batch_size=config['batch_size']
-    # )
-
-    print("Tworzenie zbiorów danych TensorFlow...")
-    # train_dataset = data_loader.create_tf_dataset(
-    #     train_samples, batch_size=config['batch_size'], sequence_length=12
-    # )
-
-    # val_dataset = data_loader.create_tf_dataset(
-    #     val_samples, batch_size=config['batch_size'], sequence_length=12
-    # )
-
-    # test_dataset = data_loader.create_tf_dataset(
-    #     test_samples, batch_size=config['batch_size'], sequence_length=12
-    # )
-
-    train_dataset = data_loader.create_tf_dataset(
-        train_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
-    ).repeat()
-    val_dataset = data_loader.create_tf_dataset(
-        val_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
-    ).repeat()
-    test_dataset = data_loader.create_tf_dataset(
-        test_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
-    ).repeat()
-
     # Lista modeli do trenowania
-    models_to_train = ['vit']
+    models_to_train = ['crnn','vit']
     results = {}  # Słownik do przechowywania wyników dla każdego modelu
+
 
     for model_type in models_to_train:
         print(f"\n{'=' * 50}")
         print(f"Trenowanie modelu {model_type.upper()}")
         print(f"{'=' * 50}")
+
+        # Przygotowanie datasetów zależnie od modelu
+        if model_type == 'vit':
+            train_dataset = data_loader.create_vit_tf_dataset(
+                train_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
+            ).repeat()
+            val_dataset = data_loader.create_vit_tf_dataset(
+                val_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
+            ).repeat()
+            test_dataset = data_loader.create_vit_tf_dataset(
+                test_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
+            ).repeat()
+        else:  # CRNN
+            train_dataset = data_loader.create_crnn_tf_dataset(
+                train_samples, batch_size=config['batch_size']
+            ).repeat()
+            val_dataset = data_loader.create_crnn_tf_dataset(
+                val_samples, batch_size=config['batch_size']
+            ).repeat()
+            test_dataset = data_loader.create_crnn_tf_dataset(
+                test_samples, batch_size=config['batch_size']
+            ).repeat()
+
+
 
         # Inicjalizacja trenera dla bieżącego typu modelu
         trainer = OCRTrainer(data_loader, model_type=model_type)
@@ -241,7 +228,8 @@ def main():
 
         # Ocena modelu na zbiorze testowym
         print(f"Ewaluacja modelu {model_type.upper()}...")
-        test_loss = trainer.model.evaluate(test_dataset, verbose=1)
+        test_steps = len(test_samples) // config['batch_size']
+        test_loss = trainer.model.evaluate(test_dataset, steps=test_steps, verbose=1)
         print(f"Strata testowa: {test_loss}")
 
         # Przechowywanie wyników dla bieżącego modelu
