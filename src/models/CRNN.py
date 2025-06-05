@@ -80,7 +80,7 @@ class CRNNModel:
         return model
 
 # Definicja funkcji straty CTC (Connectionist Temporal Classification)
-def ctc_loss_func(y_true, y_pred):
+def ctc_loss_func(blank_token_idx):
     """
     Obliczanie straty CTC dla modelu.
     Argumenty:
@@ -89,17 +89,14 @@ def ctc_loss_func(y_true, y_pred):
     Zwraca:
         loss (tensor): Obliczona strata CTC.
     """
-    # Pobranie rozmiaru batcha
-    batch_len = tf.cast(tf.shape(y_true)[0], dtype="int64")
-    # Pobranie długości sekwencji wejściowej (szerokość mapy cech)
-    input_length = tf.cast(tf.shape(y_pred)[1], dtype="int64")
-    # Pobranie długości sekwencji etykiet
-    label_length = tf.cast(tf.shape(y_true)[1], dtype="int64")
-
-    # Tworzenie tensorów dla długości wejść i etykiet
-    input_length = input_length * tf.ones(shape=(batch_len, 1), dtype="int64")
-    label_length = label_length * tf.ones(shape=(batch_len, 1), dtype="int64")
-
-    # Obliczanie straty CTC za pomocą funkcji backendu TensorFlow
-    loss = tf.keras.backend.ctc_batch_cost(y_true, y_pred, input_length, label_length)
+    def loss(y_true, y_pred):
+        # Zamień -1 (padding) na blank_token_idx
+        y_true_no_pad = tf.where(y_true == -1, blank_token_idx, y_true)
+        # Długości etykiet (bez paddingu)
+        label_length = tf.math.reduce_sum(tf.cast(tf.not_equal(y_true, -1), tf.int32), axis=1)
+        label_length = tf.expand_dims(label_length, axis=1)
+        # Długości predykcji (wszystkie time steps)
+        input_length = tf.fill([tf.shape(y_pred)[0]], tf.shape(y_pred)[1])
+        input_length = tf.expand_dims(input_length, axis=1)
+        return tf.keras.backend.ctc_batch_cost(y_true_no_pad, y_pred, input_length, label_length)
     return loss

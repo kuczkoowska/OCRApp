@@ -1,7 +1,29 @@
 import tensorflow as tf
 from tensorflow.keras import layers, Model
+from tensorflow.keras.layers import Layer
 import numpy as np
 
+class PatchExtract(Layer):
+    def __init__(self, patch_size, num_patches, img_channels=1, **kwargs):
+        super().__init__(**kwargs)
+        self.patch_size = patch_size
+        self.num_patches = num_patches
+        self.img_channels = img_channels
+        self.patch_dim = patch_size * patch_size * img_channels  # <-- liczba cech w patchu
+
+    def call(self, images):
+        patches = tf.image.extract_patches(
+            images=images,
+            sizes=[1, self.patch_size, self.patch_size, 1],
+            strides=[1, self.patch_size, self.patch_size, 1],
+            rates=[1, 1, 1, 1],
+            padding="VALID",
+        )
+        batch_size = tf.shape(patches)[0]
+        # Użyj jawnie patch_dim
+        patches = tf.reshape(patches, [batch_size, self.num_patches, self.patch_dim])
+        return patches
+    
 class ViTOCRModel:
     def __init__(self, vocab_size, img_height=32, img_width=128, patch_size=8, 
                  embed_dim=256, num_heads=8, num_layers=6):
@@ -39,7 +61,7 @@ class ViTOCRModel:
         inputs = layers.Input(shape=(self.img_height, self.img_width, 1))
         
         # wycinki z obrazu wejściowego
-        patches = self.create_patches(inputs)
+        patches = PatchExtract(self.patch_size, self.num_patches, img_channels=1)(inputs)
         
         patch_embeddings = layers.Dense(self.embed_dim)(patches)
         

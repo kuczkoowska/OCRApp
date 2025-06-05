@@ -1,0 +1,10 @@
+{
+  "vit": {
+    "final_train_loss": 0.9752967953681946,
+    "final_val_loss": 0.9471405148506165,
+    "test_loss": 0.9682797789573669,
+    "final_train_acc": 0.625,
+    "final_val_acc": 0.6388888955116272,
+    "test_acc": 0.628333330154419
+  }
+}
