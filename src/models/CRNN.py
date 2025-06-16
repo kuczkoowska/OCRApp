@@ -7,7 +7,7 @@ class CRNNModel:
         """
         Inicjalizacja modelu CRNN z rozmiarem słownika i wymiarami obrazu.
         Argumenty:
-            vocab_size (int): Liczba znaków w słowniku.
+            vocab_size (int): Liczba znaków w słowniku (bez blank!).
             img_height (int): Wysokość wejściowego obrazu.
             img_width (int): Szerokość wejściowego obrazu.
         """
@@ -25,50 +25,26 @@ class CRNNModel:
         inputs = layers.Input(shape=(self.img_height, self.img_width, 1))
         
         # Ekstrakcja cech za pomocą CNN
-        # Pierwsza warstwa konwolucyjna z 64 filtrami, jądrem 3x3, aktywacją ReLU i paddingiem 'same'
         x = layers.Conv2D(64, (3, 3), activation='relu', padding='same')(inputs)
-        # Warstwa max pooling zmniejszająca wymiary przestrzenne o połowę
         x = layers.MaxPooling2D((2, 2))(x)
-        
-        # Druga warstwa konwolucyjna z 128 filtrami, jądrem 3x3, aktywacją ReLU i paddingiem 'same'
         x = layers.Conv2D(128, (3, 3), activation='relu', padding='same')(x)
-        # Warstwa max pooling dalej zmniejszająca wymiary przestrzenne
         x = layers.MaxPooling2D((2, 2))(x)
-        
-        # Trzecia warstwa konwolucyjna z 256 filtrami, jądrem 3x3, aktywacją ReLU i paddingiem 'same'
         x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
-        # Normalizacja wsadowa stabilizująca trening i poprawiająca zbieżność
         x = layers.BatchNormalization()(x)
-        
-        # Czwarta warstwa konwolucyjna z 256 filtrami, jądrem 3x3, aktywacją ReLU i paddingiem 'same'
         x = layers.Conv2D(256, (3, 3), activation='relu', padding='same')(x)
-        # Warstwa max pooling ze stride (2, 1) zmniejszająca wysokość, ale pozostawiająca szerokość bez zmian
         x = layers.MaxPooling2D((2, 1))(x)
-        
-        # Piąta warstwa konwolucyjna z 512 filtrami, jądrem 3x3, aktywacją ReLU i paddingiem 'same'
         x = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(x)
-        # Normalizacja wsadowa stabilizująca trening
         x = layers.BatchNormalization()(x)
-        
-        # Szósta warstwa konwolucyjna z 512 filtrami, jądrem 3x3, aktywacją ReLU i paddingiem 'same'
         x = layers.Conv2D(512, (3, 3), activation='relu', padding='same')(x)
-        # Warstwa max pooling ze stride (2, 1) dalej zmniejszająca wysokość, pozostawiając szerokość bez zmian
         x = layers.MaxPooling2D((2, 1))(x)
         
         # Przekształcenie dla wejścia RNN
-        # Permutacja wymiarów na (batch, szerokość, wysokość, kanały) dla kompatybilności
         x = layers.Permute((2, 1, 3))(x)
-
-        # Przekształcenie dla przetwarzania przez RNN
         x = layers.Reshape((-1, x.shape[-2] * x.shape[-1]))(x)
-
-        # Warstwa Dense zmniejszająca wymiarowość cech dla wejścia RNN
         x = layers.Dense(64, activation='relu')(x)
         
         # Dwukierunkowe warstwy LSTM dla modelowania sekwencji
-        # Pierwsza dwukierunkowa warstwa LSTM z 256 jednostkami i dropoutem dla regularizacji
         x = layers.Bidirectional(layers.LSTM(256, return_sequences=True, dropout=0.25))(x)
-        # Druga dwukierunkowa warstwa LSTM z 256 jednostkami i dropoutem dla regularizacji
         x = layers.Bidirectional(layers.LSTM(256, return_sequences=True, dropout=0.25))(x)
         
         # Warstwa wyjściowa z aktywacją softmax dla prawdopodobieństw znaków
@@ -90,7 +66,7 @@ def ctc_loss_func(blank_token_idx):
         loss (tensor): Obliczona strata CTC.
     """
     def loss(y_true, y_pred):
-        # Zamień -1 (padding) na blank_token_idx
+        # Zamień -1 (padding) na blank_token_idx (blank na końcu słownika)
         y_true_no_pad = tf.where(y_true == -1, blank_token_idx, y_true)
         # Długości etykiet (bez paddingu)
         label_length = tf.math.reduce_sum(tf.cast(tf.not_equal(y_true, -1), tf.int32), axis=1)
