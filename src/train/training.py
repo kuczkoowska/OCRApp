@@ -17,9 +17,6 @@ class OCRTrainer:
     def __init__(self, data_loader, model_type='crnn'):
         """
         Inicjalizuje OCRTrainer z loaderem danych i typem modelu.
-        Args:
-            data_loader: Instancja loadera danych.
-            model_type: Typ modelu do trenowania ('crnn' lub 'vit').
         """
         self.data_loader = data_loader
         self.model_type = model_type
@@ -39,18 +36,6 @@ class OCRTrainer:
                 run_eagerly=True
             )
 
-        elif self.model_type == 'vit':
-            # Budowanie modelu ViT
-            model_builder = ViTOCRModel(self.data_loader.vocab_size)
-            self.model = model_builder.build_model()
-
-            # Kompilacja modelu z funkcją straty sparse categorical crossentropy
-            self.model.compile(
-                optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-                loss='sparse_categorical_crossentropy',
-                metrics=['accuracy']
-            )
-
     def train(self, train_dataset, val_dataset, train_samples, val_samples, batch_size, epochs=10, save_path='models/'):
         """
         Trenuje model na podanych zbiorach danych.
@@ -68,7 +53,7 @@ class OCRTrainer:
         model_dir = f'{save_path}/{self.model_type}_{timestamp}'
         os.makedirs(model_dir, exist_ok=True)
         
-        # Save model configuration
+        # Zapisz konfigurację modelu
         with open(f'{model_dir}/config.json', 'w') as f:
             json.dump({
                 'model_type': self.model_type,
@@ -108,7 +93,6 @@ class OCRTrainer:
             )
         ]
 
-        # Trenowanie modelu i zapis historii treningu
         print(f"Rozpoczęcie treningu modelu {self.model_type}...")
         print(f"Liczba próbek treningowych: {train_samples}")
         print(f"Liczba próbek walidacyjnych: {val_samples}")
@@ -125,7 +109,7 @@ class OCRTrainer:
             verbose=1
         )
 
-        # Save final model
+        # Zapisz finalny model
         self.model.save(f'{model_dir}/{self.model_type}_final.keras')
         
         return self.history
@@ -133,8 +117,6 @@ class OCRTrainer:
     def plot_training_history(self, save_path='results/'):
         """
         Rysuje historię treningu (strata i dokładność).
-        Args:
-            save_path: Katalog do zapisu wykresu.
         """
         if self.history is None:
             print("Brak dostępnej historii treningu")
@@ -173,7 +155,6 @@ class OCRTrainer:
 
 
 def main():
-    # Konfiguracja procesu treningu
     config = {
         'mjsynth_path': '/home/jagoda/studia/inteloblicz/OCRAppModels/mjsynth',
         'batch_size': 8,
@@ -184,26 +165,23 @@ def main():
     }
 
     print("Inicjalizacja loadera danych MJSynth...")
-    # Inicjalizacja loadera danych
     data_loader = MJSynthDataLoader(
         config['mjsynth_path'],
         img_height=config['img_height'],
         img_width=config['img_width']
     )
 
-    # Ładowanie zbiorów danych treningowych, walidacyjnych i testowych
     print("Ładowanie danych treningowych...")
     train_samples = data_loader.load_data('train', config['data_amount_limit'])
     samples = data_loader.load_data('test', limit=5)
     for path, label in samples:
         print(f"Ścieżka: {path}")
         print(f"Etykieta: {label}")
-    # Add this debug section after loading data:
-    print("\nTesting label encoding:")
+    print("\nTestowanie kodowania etykiet:")
     for path, label in samples[:3]:
         encoded = data_loader.encode_label(label)
         decoded = data_loader.decode_label(encoded)
-        print(f"Original: '{label}' → Encoded: {encoded} → Decoded: '{decoded}'")
+        print(f"Oryginał: '{label}' → Zakodowane: {encoded} → Zdekodowane: '{decoded}'")
     print("Ładowanie danych walidacyjnych...")
     val_samples = data_loader.load_data('val', config['data_amount_limit'])
 
@@ -219,44 +197,30 @@ def main():
         print(f"Trenowanie modelu {model_type.upper()}")
         print(f"{'=' * 50}")
 
-        # Przygotowanie datasetów zależnie od modelu
-        if model_type == 'vit':
-            train_dataset = data_loader.create_vit_tf_dataset(
-                train_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
-            ).repeat()
-            val_dataset = data_loader.create_vit_tf_dataset(
-                val_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
-            ).repeat()
-            test_dataset = data_loader.create_vit_tf_dataset(
-                test_samples, batch_size=config['batch_size'], sequence_length=12, for_vit=True
-            )
-        else:  # CRNN
+        if model_type == 'crnn':
             train_dataset = data_loader.create_crnn_tf_dataset(
                 train_samples, batch_size=config['batch_size']
             ).repeat()
-            print("\n[DEBUG] Checking a batch of images and labels from train_dataset:")
+            print("\n[DEBUG] Sprawdzanie batcha obrazów i etykiet z train_dataset:")
             for images, labels in train_dataset.take(1):
-                print("Images shape:", images.shape)
-                print("Labels shape:", labels.shape)
-                print("First label indices:", labels[0].numpy())
-                print("First label decoded:", data_loader.decode_label(labels[0].numpy()))
+                print("Rozmiar obrazów:", images.shape)
+                print("Rozmiar etykiet:", labels.shape)
+                print("Indeksy pierwszej etykiety:", labels[0].numpy())
+                print("Pierwsza etykieta zdekodowana:", data_loader.decode_label(labels[0].numpy()))
             val_dataset = data_loader.create_crnn_tf_dataset(
                 val_samples, batch_size=config['batch_size']
-            ).repeat()  # Added .repeat() for consistency
+            ).repeat()
             test_dataset = data_loader.create_crnn_tf_dataset(
                 test_samples, batch_size=config['batch_size']
             )
 
-        # Inicjalizacja trenera dla bieżącego typu modelu
         trainer = OCRTrainer(data_loader, model_type=model_type)
         trainer.build_model()
-        print("\n[DEBUG] Model weights mean (first 3 layers):", [w.mean() for w in trainer.model.get_weights()[:3]])
+        print("\n[DEBUG] Średnia wag pierwszych 3 warstw modelu:", [w.mean() for w in trainer.model.get_weights()[:3]])
 
-        # Wyświetlenie podsumowania modelu
         print(f"Podsumowanie modelu dla {model_type}:")
         trainer.model.summary()
 
-        # Trenowanie modelu
         history = trainer.train(
             train_dataset,
             val_dataset,
@@ -267,29 +231,27 @@ def main():
             save_path='models'
         )
         
-        for batch_images, batch_labels in test_dataset.take(2):  # <-- pobierz 2 batch'e
+        for batch_images, batch_labels in test_dataset.take(2):
             preds = trainer.model.predict(batch_images)
             decoded = data_loader.decode_predictions(preds)
-            for j in range(min(2, len(batch_labels))):  # <-- wyświetl 2 próbki z batcha
-                print(f"True label   : {data_loader.decode_label(batch_labels[j].numpy())}")
-                print(f"Predicted    : {decoded[j]}")
+            for j in range(min(2, len(batch_labels))):
+                print(f"Prawdziwa etykieta   : {data_loader.decode_label(batch_labels[j].numpy())}")
+                print(f"Przewidywana         : {decoded[j]}")
 
                 input_len = np.ones(preds.shape[0]) * preds.shape[1]
                 decoded_ctc, _ = tf.keras.backend.ctc_decode(preds, input_length=input_len, greedy=True)
 
                 decoded_indices = decoded_ctc[0][j].numpy()
                 decoded_text = ''.join([data_loader.idx_to_char.get(idx, '') for idx in decoded_indices if idx != data_loader.blank_token_idx])
-                print(f"[CTC_DECODE] Predicted: '{decoded_text}'")
-                print("\n[DEBUG] Surowe predykcje (logity/probabilities) dla tej próbki:")
+                print(f"[CTC_DECODE] Przewidywana: '{decoded_text}'")
+                print("\n[DEBUG] Surowe predykcje (logity/prawdopodobieństwa) dla tej próbki:")
                 print(preds[j])
                 print("-" * 40)
 
-        print("Training loss history:", history.history['loss'])
-        print("Validation loss history:", history.history['val_loss'])
-        # Rysowanie historii treningu
+        print("Historia straty treningowej:", history.history['loss'])
+        print("Historia straty walidacyjnej:", history.history['val_loss'])
         trainer.plot_training_history(save_path=f'results/{model_type}_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}')
 
-        # Ocena modelu na zbiorze testowym
         print(f"Ewaluacja modelu {model_type.upper()}...")
         test_steps = math.ceil(len(test_samples) / config['batch_size'])
         try:
@@ -307,21 +269,18 @@ def main():
         except Exception as e:
             print(f"Błąd podczas generowania predykcji: {e}")
 
-        # Przechowywanie wyników dla bieżącego modelu
         results[model_type] = {
             'final_train_loss': history.history['loss'][-1],
             'final_val_loss': history.history['val_loss'][-1],
             'test_loss': test_loss if isinstance(test_loss, float) else (test_loss[0] if isinstance(test_loss, list) else None)
         }
 
-        # Dodanie metryk dokładności, jeśli dostępne
         if 'accuracy' in history.history:
             results[model_type]['final_train_acc'] = history.history['accuracy'][-1]
             results[model_type]['final_val_acc'] = history.history['val_accuracy'][-1]
             if isinstance(test_loss, list) and len(test_loss) > 1:
                 results[model_type]['test_acc'] = test_loss[1]
 
-    # Zapis wyników do pliku JSON z timestampem
     results_dir = 'results'
     os.makedirs(results_dir, exist_ok=True)
     results_file = f'{results_dir}/mjsynth_comparison_results_{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}.json'
@@ -329,7 +288,6 @@ def main():
         json.dump(results, f, indent=2)
     print(f"Wyniki zapisane w pliku: {results_file}")
 
-    # Wyświetlenie końcowego porównania modeli
     print(f"\n{'=' * 50}")
     print("KOŃCOWE PORÓWNANIE")
     print(f"{'=' * 50}")

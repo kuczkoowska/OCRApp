@@ -3,7 +3,7 @@ import tensorflow as tf
 from PIL import Image
 import numpy as np
 
-
+# Klasa do ładowania i przygotowania danych MJSynth
 class MJSynthDataLoader:
     def __init__(self, data_dir, img_height=32, img_width=128):
         """
@@ -17,10 +17,11 @@ class MJSynthDataLoader:
         self.img_height = img_height
         self.img_width = img_width
 
-        # Słownik bez znaku '-' (padding), blank token na końcu
+        # Słownik znaków - tylko litery łacińskie, blank token na końcu
         self.vocab = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        self.blank_token_idx = len(self.vocab)  # blank = ostatni indeks
+        self.blank_token_idx = len(self.vocab)
 
+        # Mapowanie znaków na indeksy i odwrotnie
         self.char_to_idx = {char: idx for idx, char in enumerate(self.vocab)}
         self.idx_to_char = {idx: char for idx, char in enumerate(self.vocab)}
         self.vocab_size = len(self.vocab) + 1  # +1 na blank
@@ -28,24 +29,20 @@ class MJSynthDataLoader:
         self.pad_token_idx = -1  # padding do batchowania
     
     def decode_label(self, indices):
-    # Ignoruj blank i padding
+        # Zamienia sekwencję indeksów na tekst, ignoruje padding i blank
         return ''.join([self.idx_to_char[idx] for idx in indices if idx in self.idx_to_char and idx != self.pad_token_idx])
 
     def decode_predictions(self, predictions):
         """
-        Decode CTC predictions to text.
-        Args:
-            predictions: Raw model predictions (batch_size, time_steps, vocab_size)
-        Returns:
-            List of decoded text strings
+        Dekoduje predykcje modelu CTC do tekstu.
         """
         decoded_texts = []
         
         for pred in predictions:
-            # Get the most likely character at each timestep
+            # Wybierz najbardziej prawdopodobny znak w każdym kroku czasowym
             decoded_indices = tf.argmax(pred, axis=-1).numpy()
             
-            # Remove consecutive duplicates and blank tokens
+            # Usuń powtórzenia i blank tokeny
             decoded_sequence = []
             prev_idx = -1
             
@@ -54,7 +51,7 @@ class MJSynthDataLoader:
                     decoded_sequence.append(idx)
                 prev_idx = idx
             
-            # Convert indices to characters
+            # Zamień indeksy na znaki
             decoded_text = ''.join([
                 self.idx_to_char.get(idx, '') 
                 for idx in decoded_sequence 
@@ -66,6 +63,7 @@ class MJSynthDataLoader:
         return decoded_texts
 
     def create_crnn_tf_dataset(self, samples, batch_size=32):
+        # Funkcja do preprocessingu pojedynczego przykładu
         def preprocess_crnn(image_path, label):
             image = tf.io.read_file(image_path)
             image = tf.image.decode_image(image, channels=1)
@@ -79,6 +77,7 @@ class MJSynthDataLoader:
             label_indices.set_shape([None])
             return image, label_indices
 
+        # Przygotuj listy ścieżek i etykiet
         image_paths = [sample[0] for sample in samples]
         labels = [sample[1] for sample in samples]
         dataset = tf.data.Dataset.from_tensor_slices((image_paths, labels))
@@ -91,31 +90,6 @@ class MJSynthDataLoader:
         dataset = dataset.prefetch(tf.data.AUTOTUNE)
         return dataset
 
-    # def create_vit_tf_dataset(self, samples, batch_size=32, sequence_length=12):
-    #     def generator():
-    #         for image_path, label in samples:
-    #             image = self.preprocess_image(image_path)
-    #             if image is not None:
-    #                 encoded_label = self.encode_label(label)
-    #                 yield image, encoded_label
-
-    #     output_signature = (
-    #         tf.TensorSpec(shape=(self.img_height, self.img_width, 1), dtype=tf.float32),
-    #         tf.TensorSpec(shape=(None,), dtype=tf.int32)
-    #     )
-
-    #     dataset = tf.data.Dataset.from_generator(
-    #         generator,
-    #         output_signature=output_signature
-    #     )
-    #     dataset = dataset.padded_batch(
-    #         batch_size,
-    #         padded_shapes=([self.img_height, self.img_width, 1], [None]),
-    #         padding_values=(0.0, self.pad_token_idx)
-    #     )
-    #     return dataset
-    
-            
     def load_annotation_file(self, annotation_path):
         """
         Ładuje próbki z pliku adnotacji, wyciągając słowa z nazw plików.
@@ -140,16 +114,15 @@ class MJSynthDataLoader:
                 filename = os.path.basename(image_path)
 
                 # Wyciągnij słowo z nazwy pliku - między pierwszym a drugim '_'
-                # np. '182_slinking_71711.jpg' -> 'slinking'
                 if '_' in filename:
-                    word = filename.split('_')[1]  # Pobierz drugie pole (słowo)
+                    word = filename.split('_')[1]
                 else:
                     word = os.path.splitext(filename)[0]
 
                 if not image_path.startswith(self.data_dir):
                     image_path = os.path.join(self.data_dir, "mnt/ramdisk/max/90kDICT32px", image_path)
 
-                samples.append((image_path, word))  # Keep original case
+                samples.append((image_path, word))
 
         print(f"Załadowano {len(samples)} próbek z {annotation_path}")
         return samples
@@ -157,10 +130,6 @@ class MJSynthDataLoader:
     def load_data(self, split='train', limit: int | None = None):
         """
         Ładuje dane dla określonego podziału (np. train, validation, test).
-        Args:
-            split (str): Podział zbioru danych do załadowania (np. 'train', 'val', 'test').
-        Returns:
-            list: Lista poprawnych krotek (ścieżka_obrazu, etykieta).
         """
         # Tworzy ścieżkę do pliku z adnotacjami dla danego podziału.
         annotation_file = f"mnt/ramdisk/max/90kDICT32px/annotation_{split}.txt"
@@ -187,64 +156,18 @@ class MJSynthDataLoader:
     def is_valid_label(self, label):
         """
         Sprawdza, czy etykieta zawiera tylko dozwolone znaki ze słownika.
-        Args:
-            label (str): Etykieta do sprawdzenia.
-        Returns:
-            bool: True, jeśli etykieta jest poprawna, False w przeciwnym razie.
         """
         return all(c in self.vocab for c in label)
 
     def encode_label(self, label):
         """
         Koduje etykietę tekstową na sekwencję indeksów na podstawie słownika.
-        Args:
-            label (tf.Tensor lub str): Etykieta do zakodowania.
-        Returns:
-            np.ndarray: Tablica indeksów reprezentujących etykietę.
         """
         if isinstance(label, tf.Tensor):
             label = label.numpy().decode("utf-8")
         return np.array([self.char_to_idx[c] for c in label if c in self.char_to_idx], dtype=np.int32)
 
-    def decode_label(self, indices):
-        """
-        Dekoduje sekwencję indeksów z powrotem na etykietę tekstową.
-        Args:
-            indices (list): Lista indeksów do zdekodowania.
-        Returns:
-            str: Zdekodowana etykieta tekstowa.
-        """
-        return ''.join([self.idx_to_char[idx] for idx in indices if idx in self.idx_to_char])
-
-    # def decode_predictions(self, predictions):
-    #     """
-    #     Dekoduje przewidywania z modelu CTC na etykiety tekstowe.
-    #     Args:
-    #         predictions (tf.Tensor): Tensor zawierający przewidywania modelu.
-    #     Returns:
-    #         list: Lista zdekodowanych etykiet tekstowych.
-    #     """
-    #     # Używa funkcji dekodowania CTC z TensorFlow.
-    #     decoded = tf.keras.backend.ctc_decode(
-    #         predictions,
-    #         input_length=tf.fill([tf.shape(predictions)[0]], tf.shape(predictions)[1])
-    #     )[0][0]
-
-    #     texts = []
-    #     for sequence in decoded:
-    #         # Konwertuje indeksy na znaki, ignorując token pusty (indeks 0).
-    #         text = ''.join([self.idx_to_char[int(idx)] for idx in sequence if idx > 0])
-    #         texts.append(text)
-    #     return texts
-
     def preprocess_image(self, image_path):
-        """
-        Ładuje i przetwarza obraz dla modelu.
-        Args:
-            image_path (str): Ścieżka do pliku obrazu.
-        Returns:
-            np.ndarray: Przetworzony obraz jako tablica NumPy lub None w przypadku błędu.
-        """
         try:
             # Otwiera obraz i konwertuje go na skalę szarości.
             image = Image.open(image_path).convert('L')
@@ -255,50 +178,9 @@ class MJSynthDataLoader:
             # Normalizuje wartości pikseli do zakresu [0, 1].
             image = np.array(image, dtype=np.float32) / 255.0
 
-            # Dodaje wymiar kanału do obrazu (wymagane dla modeli TensorFlow).
+            # Dodaje wymiar kanału do obrazu.
             image = np.expand_dims(image, axis=-1)
             return image
         except Exception as e:
             print(f"Błąd podczas ładowania obrazu {image_path}: {e}")
             return None
-
-    # def create_tf_dataset(self, samples, batch_size=32):
-    #     """
-    #     Tworzy zbiór danych TensorFlow z listy próbek.
-    #     Args:
-    #         samples (list): Lista krotek (ścieżka_obrazu, etykieta).
-    #         batch_size (int): Liczba próbek na batch.
-    #     Returns:
-    #         tf.data.Dataset: Zbiór danych TensorFlow gotowy do treningu lub ewaluacji.
-    #     """
-
-    #     def generator():
-    #         """
-    #         Funkcja generatora do zwracania przetworzonych obrazów i zakodowanych etykiet.
-    #         """
-    #         for image_path, label in samples:
-    #             image = self.preprocess_image(image_path)
-    #             if image is not None:
-    #                 encoded_label = self.encode_label(label)
-    #                 yield image, encoded_label
-
-    #     # Definiuje sygnaturę wyjściową dla zbioru danych (kształty i typy obrazów i etykiet).
-    #     output_signature = (
-    #         tf.TensorSpec(shape=(self.img_height, self.img_width, 1), dtype=tf.float32),
-    #         tf.TensorSpec(shape=(None,), dtype=tf.int32)
-    #     )
-
-    #     # Tworzy zbiór danych TensorFlow z generatora.
-    #     dataset = tf.data.Dataset.from_generator(
-    #         generator,
-    #         output_signature=output_signature
-    #     )
-
-    #     # Wypełnia sekwencje (etykiety) i grupuje zbiór danych w batchach.
-    #     dataset = dataset.padded_batch(
-    #         batch_size,
-    #         padded_shapes=([self.img_height, self.img_width, 1], [None]),
-    #         padding_values=(0.0, self.pad_token_idx)  # Używa 0.0 do wypełniania obrazów i -1 do wypełniania etykiet.
-    #     )
-
-    #     return dataset
